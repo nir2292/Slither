@@ -56,12 +56,22 @@ class AvoidCollisions(bp.Policy):
         """
         # TODO implement
 
-    def get_closest_object_number(state, player_state):
+    def calc_distance(self, x1, x2, y1, y2):
+        dist = np.math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+        return dist
+
+    def get_closest_object_number(self, state, head_pos):
         """
         :return:
         """
-        for ()
-            return 0
+        closest_obj_num = 0
+        min_dis = state.shape[0] * state.shape[1]
+        for i in range(state.shape[0]):
+            for j in range(state.shape[1]):
+                if state[i][j] != 0 :
+                    if self.calc_distance()
+
+
 
     def update_state_act(self, curr_state, curr_act):
         """
@@ -81,7 +91,7 @@ class AvoidCollisions(bp.Policy):
         :return: a 5 * 5 or smaller board around the agents head
         """
         reduced_state = {}
-
+        # TODO - change it to get out of board
         lower_x = head_pos[0] - 5
         if(lower_x < 0): lower_x = 0
         lower_y = head_pos[1] - 5
@@ -105,7 +115,7 @@ class AvoidCollisions(bp.Policy):
 
 
         # state of board will be defined as an id of the closest object number
-        state_obj = self.get_closest_object_number(reduced_state, player_state)
+        state_obj = self.get_closest_object_number(reduced_state, head_pos)
 
 
         # Acting will be devided to 2 : move towards an object or m
