@@ -3,6 +3,14 @@ from policies import base_policy as bp
 import random
 import numpy as np
 
+############################################
+#  TODO Assumption about the ex:
+#
+#
+#
+#
+#
+############################################
 
 
 class AvoidCollisions(bp.Policy):
@@ -15,27 +23,32 @@ class AvoidCollisions(bp.Policy):
         #print(self.example)
         self.r_sum = 0
 
+        self.firstLearn = True
+
         self.q = {}
 
         self.epsilon = 0.1
         self.alpha = 0.2
         self.gamma = 0.9
-        self.actions = bp.Policy.ACTIONS
+        self.actions = {1,0}
         self.last_state = {}
         self.last_action = 0
         self.curr_state = {}
         self.curr_action = 0
 
-    def getQ(self, state, action):
-        return self.q.get((state, action), 0.0)
+    # DONE
+    def getQ(self, state_obj, action):
+        return self.q.get((state_obj, action), 0.0)
 
-    def learnQ(self, state, action, reward, value):
-        oldv = self.q.get((state, action), None)
+    # DONE
+    def learnQ(self, state_obj, action, reward, value):
+        oldv = self.q.get((state_obj, action), None)
         if oldv is None:
-            self.q[(state, action)] = reward
+            self.q[(state_obj, action)] = reward
         else:
-            self.q[(state, action)] = oldv + self.alpha * (value - oldv)
+            self.q[(state_obj, action)] = oldv + self.alpha * (value - oldv)
 
+    # DONE
     def learn(self, reward, t):
 
         if t % 100 == 0:
@@ -44,35 +57,56 @@ class AvoidCollisions(bp.Policy):
         else:
             self.r_sum += reward
 
-        qnext = self.getQ(self.curr_state, self.curr_action)
-        self.learnQ(self.last_state, self.last_action, reward, reward + self.gamma * qnext)
+        if not self.firstLearn:
+            qnext = self.getQ(self.curr_state, self.curr_action)
+            self.learnQ(self.last_state, self.last_action, reward, reward + self.gamma * qnext)
+        if self.firstLearn: self.firstLearn = False
 
+    # DONE
+    def calc_distance(self, x1, x2, y1, y2):
+        dist = np.math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+        return dist
 
-    def get_act(self, towards):
+    # DONE
+    def get_act(self, towards, reduced_state, obj_x, obj_y, head_pos, player_state):
         """
         if towards == true : calc the next step towards the object
         else: randomely choose one of the 2 other ways
         :return:
         """
-        # TODO implement
+        dis = self.calc_distance(obj_x, head_pos[0], obj_y, head_pos[1])
+        while True:
+            i = np.random.randint(2)
+            r, c = head_pos.move(bp.Policy.TURNS[player_state['dir']][i])
+            if towards:
+                if self.calc_distance(obj_x, r, obj_y, c) < dis:
+                    return i
+            else:
+                if self.calc_distance(obj_x, r, obj_y, c) > dis:
+                    return i
 
-    def calc_distance(self, x1, x2, y1, y2):
-        dist = np.math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
-        return dist
-
+    # Half Done - logic for other players
     def get_closest_object_number(self, state, head_pos):
         """
         :return:
         """
-        closest_obj_num = 0
+        # TODO - put logic for encountering other players
+
+
+        closest_obj_num, indx_x, idx_y = 0, 0, 0
         min_dis = state.shape[0] * state.shape[1]
+
         for i in range(state.shape[0]):
             for j in range(state.shape[1]):
-                if state[i][j] != 0 :
-                    if self.calc_distance()
+                if state[i][j] < 0 :
+                    dis = self.calc_distance(i , head_pos[0], j, head_pos[1])
+                    if dis < min_dis:
+                        min_dis = dis
+                        closest_obj_num, indx_x, indx_y = state[i][j], i, j
+        return closest_obj_num, indx_x, indx_y
 
 
-
+    # DONE
     def update_state_act(self, curr_state, curr_act):
         """
         :param state:
@@ -83,6 +117,7 @@ class AvoidCollisions(bp.Policy):
         self.curr_state = curr_state
         self.curr_action = curr_act
 
+
     def get_reduced_state(self, state, head_pos):
         """
 
@@ -90,6 +125,9 @@ class AvoidCollisions(bp.Policy):
         :param head_pos: (x,y)
         :return: a 5 * 5 or smaller board around the agents head
         """
+        x_flag = False
+        y_flag = False
+
         reduced_state = {}
         # TODO - change it to get out of board
         lower_x = head_pos[0] - 5
@@ -97,8 +135,10 @@ class AvoidCollisions(bp.Policy):
         lower_y = head_pos[1] - 5
         if(lower_y < 0): lower_y = 0
 
+        # TODO - insert logic for getting out of board
         higher_x = head_pos[0] + 5
-        if(higher_x > state.shape[0]): higher_x = state.shape[0]
+        if(higher_x > state.shape[0]):
+            higher_x = state.shape[0]
         higher_y = head_pos[1] + 5
         if(higher_y > state.shape[1]): higher_y = state.shape[1]
 
@@ -111,22 +151,22 @@ class AvoidCollisions(bp.Policy):
         head_pos = player_state['chain'][-1]
         # look only on the 10 * 10 (or smaller) patch around agents head
         reduced_state = self.get_reduced_state(state, head_pos)
+        hed_pos = (5,5)
         state = state
 
-
         # state of board will be defined as an id of the closest object number
-        state_obj = self.get_closest_object_number(reduced_state, head_pos)
+        state_obj, indx_x, indx_y = self.get_closest_object_number(reduced_state, head_pos)
 
 
         # Acting will be devided to 2 : move towards an object or m
         # Explore or exploit:
         if np.random.rand(1) < self.epsilon:
-            # go towards the object or avoid it : randomely
-            action = self.getAct(np.random.randint(1))
+            # go towards the object or avoid it : randomly
+            action = self.get_act(np.random.randint(1), indx_x, indx_y, head_pos, player_state)
             self.update_state_act(state_obj, action)
             return action
         else:
-            q = [self.getQ(state, ac) for ac in self.actions]
+            q = [self.getQ(state_obj, ac) for ac in self.actions]
             maxQ = max(q)
             count = q.count(maxQ)
             if count > 1:
@@ -134,22 +174,10 @@ class AvoidCollisions(bp.Policy):
                 i = random.choice(best)
             else:
                 i = q.index(maxQ)
-
-            action = self.actions[i]
+            # Choose weather to go towards tthe object or avoid it
+            action = self.get_act(self.actions[i], indx_x, indx_y, head_pos, player_state)
         self.update_state_act(state_obj, action)
         return action
-
-
-        #head_pos = player_state['chain'][-1]
-        #action = getAct()
-
-        """
-        #a = bp.Policy.ACTIONS['CC']
-        for a in [a]: #+ list(np.random.permutation(bp.Policy.ACTIONS)):
-            r, c = head_pos.move(bp.Policy.TURNS[player_state['dir']][a]) % state.shape
-            if state[r, c] <= 0: return a
-        return a
-        """
 
 
         # Maybe epsilon -= 0.001 or something
