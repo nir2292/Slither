@@ -23,7 +23,9 @@ class Policy2354678(bp.Policy):
         self.last_state = 0
         self.last_intention = 0
 
-        self.epsilon = 0.1
+        self.intentions = [0, 1]
+
+        self.epsilon = 0.25
         self.alpha = 0.2
         self.gamma = 0.9
 
@@ -52,23 +54,38 @@ class Policy2354678(bp.Policy):
         return dist
 
 
-    def get_act(self, towards, obj_x, obj_y, head_pos, player_state):
+    def get_act(self, towards, obj_x, obj_y, head_pos, reduced_head_pos, player_state, reduced_state):
         """
         if towards == true : calc the next step towards the object
         else: randomely choose one of the 2 other ways
         :return:
         """
-        dis = self.calc_distance(obj_x, head_pos[0], obj_y, head_pos[1])
+        dis = self.calc_distance(obj_x, reduced_head_pos[0], obj_y, reduced_head_pos[1])
+
+        zero_flag, one_flag, two_flag = False, False, False
+
+
         while True:
-            i = np.random.randint(2)
-            r, c = head_pos.move(bp.Policy.TURNS[player_state['dir']][i])
+            i = np.random.randint(3)
+            if i == 0: zero_flag = True
+            if i == 1: one_flag = True
+            if i == 2: two_flag = True
+
+            r, c = head_pos.move(bp.Policy.TURNS[player_state['dir']][bp.Policy.ACTIONS[i]])
+
+            x_fact = (1 if (head_pos[0] < r) else 0) + (-1 if (head_pos[0] > r) else 0)
+            y_fact = (1 if (head_pos[1] < c) else 0) + (-1 if (head_pos[1] > c) else 0)
 
             if towards:
-                if self.calc_distance(obj_x, r, obj_y, c) < dis:
+                if self.calc_distance(obj_x, reduced_head_pos[0] + x_fact, obj_y, reduced_head_pos[1] + y_fact) < dis and \
+                                reduced_state[reduced_head_pos[0] + x_fact][reduced_head_pos[1] + y_fact] != reduced_state[6][6]:
                     return i
+                elif zero_flag and one_flag and two_flag: return 2
             else:
-                if self.calc_distance(obj_x, r, obj_y, c) > dis:
+                if self.calc_distance(obj_x, reduced_head_pos[0] + x_fact, obj_y, reduced_head_pos[1] + y_fact) > dis and \
+                                reduced_state[reduced_head_pos[0] + x_fact][reduced_head_pos[1] + y_fact] != reduced_state[6][6]:
                     return i
+                elif zero_flag and one_flag and two_flag: return 2
 
 
     def getQ(self, state_obj, intention):
@@ -101,22 +118,22 @@ class Policy2354678(bp.Policy):
     #     return a
 
         # DONE
-    def get_act(self, towards, reduced_state, obj_x, obj_y, head_pos, player_state):
-        """
-        if towards == true : calc the next step towards the object
-        else: randomely choose one of the 2 other ways
-        :return:
-        """
-        dis = self.calc_distance(obj_x, head_pos[0], obj_y, head_pos[1])
-        while True:
-            i = np.random.randint(2)
-            r, c = head_pos.move(bp.Policy.TURNS[player_state['dir']][i])
-            if towards:
-                if self.calc_distance(obj_x, r, obj_y, c) < dis:
-                    return i
-            else:
-                if self.calc_distance(obj_x, r, obj_y, c) > dis:
-                    return i
+    # def get_act(self, towards, reduced_state, obj_x, obj_y, head_pos, player_state):
+    #     """
+    #     if towards == true : calc the next step towards the object
+    #     else: randomely choose one of the 2 other ways
+    #     :return:
+    #     """
+    #     dis = self.calc_distance(obj_x, head_pos[0], obj_y, head_pos[1])
+    #     while True:
+    #         i = np.random.randint(2)
+    #         r, c = head_pos.move(bp.Policy.TURNS[player_state['dir']][i])
+    #         if towards:
+    #             if self.calc_distance(obj_x, r, obj_y, c) < dis:
+    #                 return i
+    #         else:
+    #             if self.calc_distance(obj_x, r, obj_y, c) > dis:
+    #                 return i
 
     # Half Done - logic for other players
     def get_closest_object_number(self, state, head_pos):
@@ -126,7 +143,7 @@ class Policy2354678(bp.Policy):
         # TODO - put logic for encountering other players
 
 
-        closest_obj_num, indx_x, idx_y = 0, 0, 0
+        closest_obj_num, indx_x, indx_y = 0, 0, 0
         min_dis = abs(state.shape[0] * state.shape[1])
 
         for i in range(state.shape[0]):
@@ -145,9 +162,9 @@ class Policy2354678(bp.Policy):
         :return:
         """
         self.last_state = self.curr_state
-        self.last_action = self.curr_action
+        self.last_intention = self.curr_intention
         self.curr_state = curr_state
-        self.curr_action = curr_act
+        self.curr_intention = curr_act
 
     def get_reduced_state(self, state, head_pos):
         """
@@ -180,7 +197,8 @@ class Policy2354678(bp.Policy):
 
         # TODO check, maybe the other way around
         #reduced_state = state[lower_x:higher_x, lower_y:higher_y]
-        reduced_state = padState[head_pos[0]:(head_pos[0]+2*factor+1), head_pos[1]:(head_pos[1]+2*factor+1)]
+        reduced_state = padState[(head_pos[0]%state.shape[0]):((head_pos[0]%state.shape[0])+2*factor+1), (head_pos[1]%state.shape[1]):((head_pos[1]%state.shape[1])+2*factor+1)]
+
         return reduced_state
 
     def act(self, t, state, player_state):
@@ -188,32 +206,35 @@ class Policy2354678(bp.Policy):
         head_pos = player_state['chain'][-1]
         # look only on the 10 * 10 (or smaller) patch around agents head
         reduced_state = self.get_reduced_state(state, head_pos)
-        # hed_pos = (5, 5)
+        reduced_head_pos = (6,6)
         # state = state
 
         # state of board will be defined as an id of the closest object number
-        state_obj, indx_x, indx_y = self.get_closest_object_number(reduced_state, head_pos)
-
+        state_obj, indx_x, indx_y = self.get_closest_object_number(reduced_state, reduced_head_pos)
+        chosen = 0
         if state_obj==0:
             return bp.Policy.ACTIONS[2]
         # Acting will be devided to 2 : move towards an object or m
         # Explore or exploit:
-        # if np.random.rand(1) < self.epsilon:
-        #     # go towards the object or avoid it : randomly
-        #     action = self.get_act(np.random.randint(1), indx_x, indx_y, head_pos, player_state)
-        #     self.update_state_act(state_obj, action)
-        # return action
-        # else:
-        q = [self.getQ(state_obj, intent) for intent in self.intentions]
-        maxQ = max(q)
-        count = q.count(maxQ)
-        if count > 1:
-            i = np.random.randint(1)
+        if self.epsilon > 0.1: self.epsilon -= 0.01
+
+        #TODO left right instead of closer further
+        if np.random.rand(1) < self.epsilon:
+            # go towards the object or avoid it : randomly
+            chosen = np.random.randint(2)
+            action = self.get_act(chosen, indx_x, indx_y, head_pos, reduced_head_pos, player_state, reduced_state)
         else:
-            i = q.index(maxQ)
-        # Choose weather to go towards the object or avoid it
-        action = self.get_act(self.actions[i], indx_x, indx_y, head_pos, player_state)
-        self.update_state_act(state_obj, action)
+            q = [self.getQ(state_obj, intent) for intent in self.intentions]
+            maxQ = max(q)
+            count = q.count(maxQ)
+            if count > 1:
+                i = np.random.randint(1)
+            else:
+                i = q.index(maxQ)
+            # Choose weather to go towards the object or avoid it
+            chosen = self.intentions[i]
+            action = self.get_act(chosen, indx_x, indx_y, head_pos, reduced_head_pos, player_state, reduced_state)
+        self.update_state_act(state_obj, chosen)
         return bp.Policy.ACTIONS[action]
 
     def get_state(self):
