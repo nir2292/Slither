@@ -1,6 +1,8 @@
 from policies import base_policy as bp
 import numpy as np
 import pickle
+from queue import *
+
 
 FRAME_SIZE = 8
 
@@ -18,14 +20,15 @@ class Policy2354678(bp.Policy):
         self.Q = {}
         self.turnCount = 0
 
+        self.factor = 10
         self.curr_state = 0
         self.curr_intention = 0
         self.last_state = 0
         self.last_intention = 0
 
-        self.intentions = [0, 1]
+        self.intentions = [1, 0]
 
-        self.epsilon = 0.25
+        self.epsilon = 0.5
         self.alpha = 0.2
         self.gamma = 0.9
 
@@ -77,13 +80,14 @@ class Policy2354678(bp.Policy):
             y_fact = (1 if (head_pos[1] < c) else 0) + (-1 if (head_pos[1] > c) else 0)
 
             if towards:
-                if self.calc_distance(obj_x, reduced_head_pos[0] + x_fact, obj_y, reduced_head_pos[1] + y_fact) < dis and \
-                                reduced_state[reduced_head_pos[0] + x_fact][reduced_head_pos[1] + y_fact] != reduced_state[6][6]:
+                #TODO CHECK THIS OUT
+                if self.calc_distance(obj_x, reduced_head_pos[0] + x_fact, obj_y, reduced_head_pos[1] + y_fact) < dis:# and \
+                                # reduced_state[reduced_head_pos[0] + x_fact][reduced_head_pos[1] + y_fact] != reduced_state[self.factor][self.factor]:
                     return i
                 elif zero_flag and one_flag and two_flag: return 2
             else:
-                if self.calc_distance(obj_x, reduced_head_pos[0] + x_fact, obj_y, reduced_head_pos[1] + y_fact) > dis and \
-                                reduced_state[reduced_head_pos[0] + x_fact][reduced_head_pos[1] + y_fact] != reduced_state[6][6]:
+                if self.calc_distance(obj_x, reduced_head_pos[0] + x_fact, obj_y, reduced_head_pos[1] + y_fact) > dis:# and \
+                                # reduced_state[reduced_head_pos[0] + x_fact][reduced_head_pos[1] + y_fact] != reduced_state[self.factor][self.factor]:
                     return i
                 elif zero_flag and one_flag and two_flag: return 2
 
@@ -156,7 +160,7 @@ class Policy2354678(bp.Policy):
         return closest_obj_num, indx_x, indx_y
 
     # DONE
-    def update_state_act(self, curr_state, curr_act):
+    def update_state_act(self, curr_state, curr_act, t):
         """
         :param state:
         :return:
@@ -176,7 +180,7 @@ class Policy2354678(bp.Policy):
         x_flag = False
         y_flag = False
 
-        factor = 6
+        factor = self.factor
 
         padState = np.concatenate((state[:, -factor:state.shape[1]], state, state[:, 0:factor]), axis=1)
         padState = np.concatenate((padState[-factor:padState.shape[0] , :], padState, padState[0:factor , :]), axis=0)
@@ -206,7 +210,7 @@ class Policy2354678(bp.Policy):
         head_pos = player_state['chain'][-1]
         # look only on the 10 * 10 (or smaller) patch around agents head
         reduced_state = self.get_reduced_state(state, head_pos)
-        reduced_head_pos = (6,6)
+        reduced_head_pos = (self.factor,self.factor)
         # state = state
 
         # state of board will be defined as an id of the closest object number
@@ -216,17 +220,22 @@ class Policy2354678(bp.Policy):
             return bp.Policy.ACTIONS[2]
         # Acting will be devided to 2 : move towards an object or m
         # Explore or exploit:
-        if self.epsilon > 0.1: self.epsilon -= 0.01
+        if self.epsilon > 0.1: self.epsilon -= 0.001
 
         #TODO left right instead of closer further
         if np.random.rand(1) < self.epsilon:
             # go towards the object or avoid it : randomly
-            chosen = np.random.randint(2)
+            chosen = 1
             action = self.get_act(chosen, indx_x, indx_y, head_pos, reduced_head_pos, player_state, reduced_state)
+
+            #choose random turn
+            #action = np.random.randint(3)
         else:
             q = [self.getQ(state_obj, intent) for intent in self.intentions]
             maxQ = max(q)
             count = q.count(maxQ)
+
+            #i = 0
             if count > 1:
                 i = np.random.randint(1)
             else:
@@ -234,7 +243,7 @@ class Policy2354678(bp.Policy):
             # Choose weather to go towards the object or avoid it
             chosen = self.intentions[i]
             action = self.get_act(chosen, indx_x, indx_y, head_pos, reduced_head_pos, player_state, reduced_state)
-        self.update_state_act(state_obj, chosen)
+        self.update_state_act(state_obj, chosen, t)
         return bp.Policy.ACTIONS[action]
 
     def get_state(self):
