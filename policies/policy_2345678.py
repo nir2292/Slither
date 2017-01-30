@@ -10,14 +10,27 @@ class Policy2354678(bp.Policy):
 
 
     def cast_string_args(self, policy_args):
-        policy_args['Q'] = float(policy_args['Q']) if 'Q' in policy_args else np.zeros([len(self.ACTIONS), self.board_size[0], self.board_size[1]])
+        self.Q = {}
+
+        if 'load_from' in policy_args:
+            try:
+                self.Q = pickle.load(open(policy_args['load_from'], 'rb'))
+            except IOError:
+                self.Q = {}
+
+        #policy_args['Q'] = policy_args['Q'] if 'Q' in policy_args else {}
+
+        #  -m2 -P Policy2354678(load_from=states/140631070615816.1.Policy2354678.state.pkl);Policy2354678(load_from=states/140631070615816.2.Policy2354678.state.pkl) -D 3000
         return policy_args
 
     def init_run(self):
         #initiate Q table actions*states
         self.statesSize = self.board_size[0]*self.board_size[1]
         #self.Q = np.zeros([len(self.ACTIONS), self.board_size[0], self.board_size[1]])
-        self.Q = {}
+        #self.Q = {}
+
+        #-m2 -P Policy2354678(load_from=states/139713257744536.2.Policy2354678.state.pkl) -D 3000
+
         self.turnCount = 0
 
         self.factor = 10
@@ -26,10 +39,10 @@ class Policy2354678(bp.Policy):
         self.last_state = 0
         self.last_intention = 0
 
-        self.intentions = [1, 0]
+        self.intentions = [0, 1]
 
         self.epsilon = 0.5
-        self.alpha = 0.2
+        self.alpha = 0.3
         self.gamma = 0.9
 
         self.LearnRate = 0.8
@@ -38,12 +51,7 @@ class Policy2354678(bp.Policy):
         self.CurrMove = 0
 
 
-        # try:
-        #     self.Q = pickle.load(open(self.load_from))
-        # except IOError:
-        #     self.Q = np.zeros([len(self.ACTIONS), self.board_size[0], self.board_size[1]])
-        # print('d')
-        #self.state = state
+
 
     # def learn(self, reward, t):
     #     currQ = self.Q[self.CurrMove, self.CurrState[0], self.CurrState[1]]
